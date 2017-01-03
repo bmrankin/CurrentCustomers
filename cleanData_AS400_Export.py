@@ -3,6 +3,12 @@ import csv
 import agate
 import agateexcel
 import re
+import locale
+
+locale.setlocale(locale.LC_ALL, '')
+
+
+# CUST_BRYAN_withdates_12-29-16.xlsx
 
 # Make sure using Python 3
 if sys.version_info[0] < 3:
@@ -11,13 +17,13 @@ if sys.version_info[0] < 3:
 
 ## SETUP
 # file = 'customers_trans_dates.csv'
-seperator = '\n' + '--------------------' + '\n'
+seperator = '\n' + '========================================' + '\n'
 yes = set(['yes','ye','y',''])
 no = set(['no','n'])
 
 
 ##################
-### def's
+### processMissingBillTos
 ##################
 
 def processMissingBillTos():
@@ -41,34 +47,60 @@ def processMissingBillTos():
     # Print original table
     data.print_table(max_rows=10,max_columns=10)
 
-    # Save customers that have bill to to a new csv
-    haveBillTo = data.where(lambda row: row['Bill_To'] != 0 )
-    haveBillTo.to_csv('customers_with_BillTo.csv')
+    # def to finish processMissingBillTos
+    def continueProcessing():
 
+        # Save customers that have bill to to a new csv
+        haveBillTo = data.where(lambda row: row['Bill_To'] != 0 )
+        rc = haveBillTo.aggregate(agate.Count())
+        print(seperator + 'Have Bill To - Number of rows: ' + str(rc) + seperator)
+        haveBillTo.print_table(max_rows=10,max_columns=10)
+        haveBillTo.to_csv('customers_with_BillTo.csv')
 
-    # customers missing Bill to
-    missingBillTo = data.where(lambda row: row['Bill_To'] == 0 )
-    rc = missingBillTo.aggregate(agate.Count())
-    print(seperator + 'Missing Bill To - Number of rows: ' + str(rc) + seperator)
-    missingBillTo.print_table(max_rows=10,max_columns=10)
+        # customers missing Bill to
+        missingBillTo = data.where(lambda row: row['Bill_To'] == 0 )
+        rc = missingBillTo.aggregate(agate.Count())
+        print(seperator + 'Missing Bill To - Number of rows: ' + str(rc) + seperator)
+        missingBillTo.print_table(max_rows=10,max_columns=10)
 
-    # copy ship to as bill to
-    ## THIS IS A HACK FOR NOW ##
-    ## Assumes that the bill to is 0 and then adds the Customer Number (Ship To) to it
-    ## Maybe set columns as .Text() or str() and then copy directly?
-    replacedBillTo = missingBillTo.compute([
-        ('Bill_To', agate.Change('Bill_To', 'Customer'))
-    ], replace=True)
+        # copy ship to as bill to
+        ## THIS IS A HACK FOR NOW ##
+        ## Assumes that the bill to is 0 and then adds the Customer Number (Ship To) to it
+        ## Maybe set columns as .Text() or str() and then copy directly?
+        replacedBillTo = missingBillTo.compute([
+            ('Bill_To', agate.Change('Bill_To', 'Customer'))
+        ], replace=True)
 
-    # save the customers with their bill tos applied from ship to
-    replacedBillTo.to_csv('customers_with_replaced_BillTo.csv')
+        # save the customers with their bill tos applied from ship to
+        replacedBillTo.to_csv('customers_with_replaced_BillTo.csv')
 
-    # Count rows
-    rc = replacedBillTo.aggregate(agate.Count())
+        # Count rows
+        rc = replacedBillTo.aggregate(agate.Count())
 
-    # print the table
-    print(seperator + 'Replaced Bill_To - Number of rows: ' + str(rc) + seperator)
-    replacedBillTo.print_table(max_rows=10,max_columns=10)
+        # print the table
+        print(seperator + 'Replaced Bill_To - Number of rows: ' + str(rc) + seperator)
+        replacedBillTo.print_table(max_rows=10,max_columns=10)
+
+    # Do we need to filter?
+    filterDate = input('Do you want to filter to date of last purchase? (y/n) ')
+
+    if filterDate in yes:
+        as400Date = input('What is the date in the AS400 date format?:  ')
+        data = data.where(lambda row: int(as400Date) < row['Date_Last_Pmt'])
+        data.print_table(max_rows=10, max_columns=10)
+        # Did that filter look good?
+        goAhead = input('Looks good? (y/n):  ')
+        if goAhead in yes:
+            # Then keep on going
+            continueProcessing()
+        else:
+            # Start processing back over
+            processMissingBillTos()
+        # continueProcessing()
+    elif filterDate in no:
+        # No date filter needed. Continue processing
+        continueProcessing()
+
 
 def createNewCustomerFile():
     # join both csv files
@@ -78,13 +110,15 @@ def createNewCustomerFile():
     replacedBillTo = agate.Table.from_csv('customers_with_replaced_BillTo.csv')
     # merge tables
     newCustomerTable = agate.Table.merge([haveBillTo,replacedBillTo])
+    sortednewCustomerTable = newCustomerTable.order_by('Customer')
+
     newFileName = input('New csv file name... (include \'.csv\'): ')
     print('Creating file...')
-    newCustomerTable.to_csv(newFileName)
+    sortednewCustomerTable.to_csv(newFileName)
 
     # sort by ship to number
 
-openFile = input('What file do you want process?  ')
+openFile = input('What file do you want process? (csv, xls, xlsx) ')
 
 if openFile:
     processMissingBillTos()
@@ -97,6 +131,7 @@ elif joinFiles in no:
     sys.exit('Closing')
 else:
     print("Please respond with 'yes' or 'no'.")
+
 
 print('\n')
 #
