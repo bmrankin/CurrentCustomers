@@ -21,7 +21,8 @@ no = set(['no','n'])
 ##################
 
 def processMissingBillTos():
-    # open test.csv as agate Table
+    # openfile as an agate Table
+    # can open csv, xls or xlsx
     if openFile.endswith('.csv'):
         data = agate.Table.from_csv(openFile)
     elif openFile.endswith('.xls'):
@@ -38,7 +39,7 @@ def processMissingBillTos():
     print(seperator + 'Original File - Number of rows: ' + str(rc) + seperator)
 
     # Print original table
-    data.print_table(max_rows=10)
+    data.print_table(max_rows=10,max_columns=10)
 
     # Save customers that have bill to to a new csv
     haveBillTo = data.where(lambda row: row['Bill_To'] != 0 )
@@ -49,7 +50,7 @@ def processMissingBillTos():
     missingBillTo = data.where(lambda row: row['Bill_To'] == 0 )
     rc = missingBillTo.aggregate(agate.Count())
     print(seperator + 'Missing Bill To - Number of rows: ' + str(rc) + seperator)
-    missingBillTo.print_table(max_rows=10)
+    missingBillTo.print_table(max_rows=10,max_columns=10)
 
     # copy ship to as bill to
     ## THIS IS A HACK FOR NOW ##
@@ -67,7 +68,7 @@ def processMissingBillTos():
 
     # print the table
     print(seperator + 'Replaced Bill_To - Number of rows: ' + str(rc) + seperator)
-    replacedBillTo.print_table(max_rows=10)
+    replacedBillTo.print_table(max_rows=10,max_columns=10)
 
 def createNewCustomerFile():
     # join both csv files
